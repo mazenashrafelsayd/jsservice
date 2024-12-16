@@ -19,7 +19,7 @@ app.use(cors());
 // Rate Limiter Middleware to prevent abuse
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per window
+  max: 1000, // Limit each IP to 100 requests per window
   standardHeaders: true,
   legacyHeaders: false,
   message: "Too many requests, please try again later.",
