@@ -72,20 +72,6 @@ app.use(express.json());
 //   });
 // });
 
-// Middleware to block GET requests from browsers
-app.use((req, res, next) => {
-  if (req.method === "GET") {
-    const userAgent = req.headers["user-agent"];
-    const origin = req.headers["origin"];
-
-    // Check if the request comes from a browser
-    if (userAgent && userAgent.includes("Mozilla") && origin) {
-      return res.status(403).send("");
-    }
-  }
-  next();
-});
-
 // Dynamic Route: Return file contents based on the filename in the "15" folder
 app.get("/api/ipcheck/:filename", (req, res) => {
   const requestedFile = req.params.filename;
