@@ -1,11 +1,15 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const cors = require("cors");
 
 const app = express();
 
 // Path to the "15" folder
 const folderPath = path.join(__dirname, "15");
+
+// Enable CORS for all requests
+app.use(cors());
 
 // Middleware to parse JSON requests
 app.use(express.json());
