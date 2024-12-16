@@ -23,6 +23,9 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: "Too many requests, please try again later.",
+
+  // Skip rate limiting if the secret header is valid
+  skip: (req) => req.headers["x-secret-header"] === SECRET_HEADER_VALUE,
 });
 
 // Apply rate limiter globally
