@@ -11,14 +11,14 @@ const folderPath = path.join(__dirname, "15");
 app.use(express.json());
 
 // Route: List all available files in the "15" folder
-app.get("/", (req, res) => {
-  fs.readdir(folderPath, (err, files) => {
-    if (err) {
-      return res.status(500).json({ error: "Unable to read folder." });
-    }
-    res.json({ availableFiles: files });
-  });
-});
+// app.get("/", (req, res) => {
+//   fs.readdir(folderPath, (err, files) => {
+//     if (err) {
+//       return res.status(500).json({ error: "Unable to read folder." });
+//     }
+//     res.json({ availableFiles: files });
+//   });
+// });
 
 // Dynamic Route: Return file contents based on the filename in the "15" folder
 app.get("/:filename", (req, res) => {
