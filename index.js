@@ -36,7 +36,7 @@ app.get("/:filename", (req, res) => {
       if (err) {
         return res.status(500).json({ error: "Unable to read the file." });
       }
-      res.json({ content });
+      res.json(content);
     });
   });
 });
