@@ -83,13 +83,13 @@ app.get("/api/ipcheck/:filename", (req, res) => {
   // Check if the file exists
   fs.access(filePath, fs.constants.F_OK, (err) => {
     if (err) {
-      return res.status(404).json({ error: "File not found." });
+      return res.status(404).json({ error: "IP check failed." });
     }
 
     // Read the file content
     fs.readFile(filePath, "utf-8", (err, content) => {
       if (err) {
-        return res.status(500).json({ error: "Unable to read the file." });
+        return res.status(500).json({ error: "Unable to check IP." });
       }
       res.json(content);
     });
