@@ -78,7 +78,7 @@ app.use(async (req, res, next) => {
     const { country = "none", regionName = "none", city = "none" } = ipDetails;
 
     // Insert the request details into the Firestore database
-    if (requestUrl !== "/favicon.ico") {
+    if (requestUrl !== "/favicon.ico" && requestUrl !== "/favicon.png") {
       await addDoc(collection(db, "requests"), {
         country,
         regionName,
