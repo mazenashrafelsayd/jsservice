@@ -214,34 +214,64 @@ app.get("/mine/list", async (req, res) => {
             .checkbox {
               margin: 0;
             }
+
+            .toggle-btn {
+              padding: 5px 15px;
+              background-color: #4CAF50;
+              color: white;
+              border: none;
+              cursor: pointer;
+              border-radius: 5px;
+            }
+
+            .toggle-btn.off {
+              background-color: #f44336;
+            }
+
+            .toggle-btn:hover {
+              background-color: #45a049;
+            }
+
+            .toggle-btn.off:hover {
+              background-color: #e53935;
+            }
+
+            .hidden-row {
+              display: none;
+            }
           </style>
         </head>
         <body>
           <div class="container">
             <h2>Request Logs</h2>
-          <form method="POST" action="/mine/delete">
+            <button class="toggle-btn off" id="toggleFilter" onclick="toggleFilter()">Show All</button>
+            <form method="POST" action="/mine/delete">
               <div class="table-container">
-            <table>
-              <thead>
-                <tr>
+                <table>
+                  <thead>
+                    <tr>
                       <th><input type="checkbox" id="select-all" onclick="selectAll()"></th>
-                  <th>#</th>
-                  <th>Country</th>
-                  <th>Region</th>
-                  <th>City</th>
-                  <th>Method</th>
-                  <th>IP</th>
-                  <th>Request URL</th>
-                  <th>Timestamp</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
+                      <th>#</th>
+                      <th>Country</th>
+                      <th>Region</th>
+                      <th>City</th>
+                      <th>Method</th>
+                      <th>IP</th>
+                      <th>Request URL</th>
+                      <th>Timestamp</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
     `;
 
     rows.forEach((row, index) => {
+      // Check if the request URL is "/mine/list" and filter out if the toggle is off
+      const isFilteredOut = row.url === "/mine/list";
+      const rowClass = isFilteredOut ? 'hidden-row' : '';
+
       table += `
-        <tr>
+        <tr class="${rowClass}" data-url="${row.url}">
           <td><input type="checkbox" class="checkbox" name="deleteIds[]" value="${row.id}"></td>
           <td>${index + 1}</td>
           <td>${row.country}</td>
@@ -266,6 +296,23 @@ app.get("/mine/list", async (req, res) => {
               const checkboxes = document.querySelectorAll('input[type="checkbox"]');
               checkboxes.forEach((checkbox) => (checkbox.checked = event.target.checked));
             }
+
+            function toggleFilter() {
+              const toggleBtn = document.getElementById("toggleFilter");
+              const rows = document.querySelectorAll("tr[data-url='/mine/list']");
+              
+              if (toggleBtn.classList.contains("off")) {
+                // Show all rows
+                rows.forEach((row) => row.classList.remove("hidden-row"));
+                toggleBtn.classList.remove("off");
+                toggleBtn.textContent = "Hide '/mine/list' Entries";
+              } else {
+                // Hide rows where the URL is "/mine/list"
+                rows.forEach((row) => row.classList.add("hidden-row"));
+                toggleBtn.classList.add("off");
+                toggleBtn.textContent = "Show All";
+              }
+            }
           </script>
         </body>
       </html>
@@ -276,6 +323,7 @@ app.get("/mine/list", async (req, res) => {
     res.status(500).json({ error: "Failed to retrieve logs.", err });
   }
 });
+
 
 // Route: Delete selected logs
 app.post("/mine/delete", async (req, res) => {
