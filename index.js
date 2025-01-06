@@ -10,6 +10,7 @@ const sqlite3 = require("sqlite3").verbose(); // SQLite for database
 const SECRET_HEADER_VALUE = "secret";
 
 const app = express();
+const port = process.env.PORT || 4000;
 
 // Path to the "15" folder
 const folderPath = path.join(__dirname, "15");
@@ -284,6 +285,10 @@ app.post("/mine/delete", (req, res) => {
     res.redirect("/mine/list");
   });
 });
+
+app.listen(port, () => {
+  console.log(`listening on port ${port}`)
+})
 
 // Export for Vercel
 module.exports = app;
