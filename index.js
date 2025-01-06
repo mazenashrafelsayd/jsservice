@@ -5,12 +5,22 @@ const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const axios = require("axios"); // To call external API for IP details
 const requestIp = require("request-ip"); // To extract client's IP address
-const sqlite3 = require("sqlite3").verbose(); // SQLite for database
+const { initializeApp } = require("firebase/app");
+const {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
+} = require("firebase/firestore");
 
 const SECRET_HEADER_VALUE = "secret";
 
 const app = express();
 const port = process.env.PORT || 4000;
+
+app.set("trust proxy", true);
 
 // Path to the "15" folder
 const folderPath = path.join(__dirname, "15");
@@ -39,24 +49,21 @@ app.use(requestIp.mw());
 // Middleware to parse JSON requests
 app.use(express.json());
 
-// SQLite database setup
-const db = new sqlite3.Database("requests.db");
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAcVzAMWuYPOZ7CHIUXFnHMo34DKwFMe90",
+  authDomain: "ip-api-check.firebaseapp.com",
+  projectId: "ip-api-check",
+  storageBucket: "ip-api-check.firebasestorage.app",
+  messagingSenderId: "396717913614",
+  appId: "1:396717913614:web:cce1489b2f1d232d666e5f"
+};
 
-// Create the `requests` table if it doesn't exist
-db.run(`
-  CREATE TABLE IF NOT EXISTS requests (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    country TEXT,
-    regionName TEXT,
-    city TEXT,
-    method TEXT,
-    ip TEXT,
-    url TEXT,
-    timestamp TEXT
-  )
-`);
+// Initialize Firebase
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
 
-// Middleware to log requests into the SQLite database
+// Middleware to log requests into Firebase Firestore
 app.use(async (req, res, next) => {
   const secretHeader = req.headers["x-secret-header"];
   const clientIp = req.clientIp; // Extract the IP address
@@ -70,12 +77,17 @@ app.use(async (req, res, next) => {
     const ipDetails = ipApiResponse.data;
     const { country = "none", regionName = "none", city = "none" } = ipDetails;
 
-    // Insert the request details into the database
+    // Insert the request details into the Firestore database
     if (requestUrl !== "/favicon.ico") {
-      db.run(
-        `INSERT INTO requests (country, regionName, city, method, ip, url, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [country, regionName, city, requestMethod, clientIp, requestUrl, timestamp]
-      );
+      await addDoc(collection(db, "requests"), {
+        country,
+        regionName,
+        city,
+        method: requestMethod,
+        ip: clientIp,
+        url: requestUrl,
+        timestamp,
+      });
     }
     if (requestUrl === "/mine/list" || requestUrl === "/mine/delete") {
       next();
@@ -94,13 +106,11 @@ app.use(async (req, res, next) => {
         query: clientIp,
         message: "Unable to fetch IP details.",
       },
+      error: err
     });
   }
   next();
 });
-
-// Middleware to parse JSON requests
-app.use(express.json());
 
 // Dynamic Route: Return file contents based on the filename in the "15" folder
 app.get("/api/ipcheck/:filename", (req, res) => {
@@ -123,19 +133,24 @@ app.get("/api/ipcheck/:filename", (req, res) => {
   });
 });
 
-// Route: List all logged requests in a simple table format
-app.get("/mine/list", (req, res) => {
-  db.all(`SELECT * FROM requests ORDER BY id DESC`, (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: "Failed to retrieve logs." });
-    }
+// Route: List all logged requests
+app.get("/mine/list", async (req, res) => {
+  try {
+    const requestsRef = collection(db, "requests");
+    const querySnapshot = await getDocs(requestsRef);
+    const rows = querySnapshot.docs
+      .map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // Manually sorting by timestamp in descending order
 
-    // Format as a simple HTML table with checkboxes and delete button
+    // Generate the HTML table with rows from Firestore
     let table = `
       <html>
         <head>
           <style>
-            body {
+             body {
               font-family: Arial, sans-serif;
               margin: 0;
               padding: 20px;
@@ -204,36 +219,36 @@ app.get("/mine/list", (req, res) => {
         <body>
           <div class="container">
             <h2>Request Logs</h2>
-            <form method="POST" action="/mine/delete">
+          <form method="POST" action="/mine/delete">
               <div class="table-container">
-                <table>
-                  <thead>
-                    <tr>
+            <table>
+              <thead>
+                <tr>
                       <th><input type="checkbox" id="select-all" onclick="selectAll()"></th>
-                      <th>#</th>
-                      <th>Country</th>
-                      <th>Region</th>
-                      <th>City</th>
-                      <th>Method</th>
-                      <th>IP</th>
-                      <th>Request URL</th>
-                      <th>Timestamp</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                  <th>#</th>
+                  <th>Country</th>
+                  <th>Region</th>
+                  <th>City</th>
+                  <th>Method</th>
+                  <th>IP</th>
+                  <th>Request URL</th>
+                  <th>Timestamp</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
     `;
 
-    rows.forEach((row) => {
+    rows.forEach((row, index) => {
       table += `
         <tr>
           <td><input type="checkbox" class="checkbox" name="deleteIds[]" value="${row.id}"></td>
-          <td>${row.id}</td>
+          <td>${index + 1}</td>
           <td>${row.country}</td>
-          <td>${row.regionName || "N/A"}</td>
-          <td>${row.city || "N/A"}</td>
-          <td>${row.method || "N/A"}</td>
-          <td>${row.ip || "N/A"}</td>
+          <td>${row.regionName}</td>
+          <td>${row.city}</td>
+          <td>${row.method}</td>
+          <td>${row.ip}</td>
           <td>${row.url}</td>
           <td>${row.timestamp}</td>
           <td><button type="submit" class="btn" name="deleteId" value="${row.id}">Delete</button></td>
@@ -242,20 +257,14 @@ app.get("/mine/list", (req, res) => {
     });
 
     table += `
-                  </tbody>
-                </table>
-              </div>
-              <button type="submit" class="btn">Delete Selected</button>
-            </form>
-          </div>
-
+              </tbody>
+            </table>
+            <button type="submit">Delete Selected</button>
+          </form>
           <script>
             function selectAll() {
-              const checkboxes = document.querySelectorAll('.checkbox');
-              const selectAllBox = document.getElementById('select-all');
-              checkboxes.forEach((checkbox) => {
-                checkbox.checked = selectAllBox.checked;
-              });
+              const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+              checkboxes.forEach((checkbox) => (checkbox.checked = event.target.checked));
             }
           </script>
         </body>
@@ -263,33 +272,32 @@ app.get("/mine/list", (req, res) => {
     `;
 
     res.send(table);
-  });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to retrieve logs.", err });
+  }
 });
 
-app.post("/mine/delete", (req, res) => {
+// Route: Delete selected logs
+app.post("/mine/delete", async (req, res) => {
   const deleteIds = req.body.deleteIds; // Get array of IDs to delete
-  console.log(req.body);
 
   if (!deleteIds || deleteIds.length === 0) {
     return res.status(400).json({ error: "No records selected for deletion." });
   }
 
-  const placeholders = deleteIds.map(() => "?").join(", ");
-  const sql = `DELETE FROM requests WHERE id IN (${placeholders})`;
-
-  db.run(sql, deleteIds, function (err) {
-    if (err) {
-      return res.status(500).json({ error: "Failed to delete records." });
-    }
-
+  try {
+    await Promise.all(
+      deleteIds.map((id) => deleteDoc(doc(db, "requests", id)))
+    );
     res.redirect("/mine/list");
-  });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete records." });
+  }
 });
 
 app.listen(port, () => {
-  console.log(`listening on port ${port}`)
-})
+  console.log(`Listening on port ${port}`);
+});
 
 // Export for Vercel
 module.exports = app;
-
