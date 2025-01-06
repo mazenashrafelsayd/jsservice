@@ -83,7 +83,7 @@ app.use(async (req, res, next) => {
         country,
         regionName,
         city,
-        method: requestMethod,
+        method: secretHeader ? `${requestMethod}:${secretHeader}` : requestMethod,
         ip: clientIp,
         url: requestUrl,
         timestamp,
