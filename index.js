@@ -41,7 +41,7 @@ const limiter = rateLimit({
 });
 
 // Apply rate limiter globally
-app.use(limiter);
+// app.use(limiter);
 
 // Middleware to extract client's IP
 app.use(requestIp.mw());
@@ -69,7 +69,16 @@ app.use(async (req, res, next) => {
   const clientIp = req.clientIp; // Extract the IP address
   const requestUrl = req.originalUrl;
   const requestMethod = req.method; // Capture the HTTP method
-  const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }); // UTC+9
+  const timestamp = new Date().toLocaleString("en-US", {
+    timeZone: "Asia/Tokyo",
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).replace(/(\d+)\/(\d+)\/(\d+),\s(\d+):(\d+):(\d+)/, '$3/$1/$2 $4:$5:$6');
 
   try {
     // Fetch IP details using ip-api.com
@@ -133,20 +142,17 @@ app.get("/api/ipcheck/:filename", (req, res) => {
   });
 });
 
-// Route: List all logged requests
+// Route: List all logged requests with real-time updates
 app.get("/mine/list", async (req, res) => {
   try {
-    const requestsRef = collection(db, "requests");
-    const querySnapshot = await getDocs(requestsRef);
-    const rows = querySnapshot.docs
-      .map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }))
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // Manually sorting by timestamp in descending order
+    // First check if Firebase is properly initialized
+    if (!db) {
+      console.error("Firestore database instance is not initialized");
+      throw new Error("Database not initialized");
+    }
 
-    // Generate the HTML table with rows from Firestore
-    let table = `
+    // Initial HTML structure
+    const initialHtml = `
       <html>
         <head>
           <style>
@@ -240,61 +246,132 @@ app.get("/mine/list", async (req, res) => {
               display: none;
             }
           </style>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.1/firebase-app-compat.js"></script>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.1/firebase-firestore-compat.js"></script>
         </head>
         <body>
           <div class="container">
-            <h2>Request Logs</h2>
+            <div id="errorMessage" style="display: none; color: red; text-align: center; margin: 10px;"></div>
             <button class="toggle-btn off" id="toggleFilter" onclick="toggleFilter()">Show All</button>
             <form method="POST" action="/mine/delete">
               <div class="table-container">
-                <table>
+                <table id="logsTable">
                   <thead>
                     <tr>
-                      <th><input type="checkbox" id="select-all" onclick="selectAll()"></th>
                       <th>#</th>
                       <th>Country</th>
                       <th>Region</th>
                       <th>City</th>
                       <th>Method</th>
-                      <th>IP</th>
                       <th>Request URL</th>
                       <th>Timestamp</th>
-                      <th>Action</th>
+                      <th>IP</th>
                     </tr>
                   </thead>
-                  <tbody>
-    `;
+                  <tbody id="logsTableBody">
+                  </tbody>
+                </table>
+              </div>
+            </form>
+          </div>
 
-    rows.forEach((row, index) => {
-      // Check if the request URL is "/mine/list" and filter out if the toggle is off
-      const isFilteredOut = row.url === "/mine/list";
-      const rowClass = isFilteredOut ? 'hidden-row' : '';
-
-      table += `
-        <tr class="${rowClass}" data-url="${row.url}">
-          <td><input type="checkbox" class="checkbox" name="deleteIds[]" value="${row.id}"></td>
-          <td>${index + 1}</td>
-          <td>${row.country}</td>
-          <td>${row.regionName}</td>
-          <td>${row.city}</td>
-          <td>${row.method}</td>
-          <td>${row.ip}</td>
-          <td>${row.url}</td>
-          <td>${row.timestamp}</td>
-          <td><button type="submit" class="btn" name="deleteId" value="${row.id}">Delete</button></td>
-        </tr>
-      `;
-    });
-
-    table += `
-              </tbody>
-            </table>
-            <button type="submit">Delete Selected</button>
-          </form>
           <script>
-            function selectAll() {
-              const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-              checkboxes.forEach((checkbox) => (checkbox.checked = event.target.checked));
+            // Initialize Firebase with error handling
+            try {
+              const firebaseConfig = {
+                apiKey: "AIzaSyAcVzAMWuYPOZ7CHIUXFnHMo34DKwFMe90",
+                authDomain: "ip-api-check.firebaseapp.com",
+                projectId: "ip-api-check",
+                storageBucket: "ip-api-check.firebasestorage.app",
+                messagingSenderId: "396717913614",
+                appId: "1:396717913614:web:cce1489b2f1d232d666e5f"
+              };
+              
+              // Initialize Firebase
+              firebase.initializeApp(firebaseConfig);
+              const db = firebase.firestore();
+              console.log("Firebase initialized successfully");
+
+              // Function to show error message
+              function showError(message) {
+                const errorDiv = document.getElementById('errorMessage');
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+              }
+
+              // Function to create table row
+              function createTableRow(doc, index) {
+                try {
+                  const data = doc.data();
+                  const isFilteredOut = data.url === "/mine/list";
+                  const rowClass = isFilteredOut ? 'hidden-row' : '';
+                  
+                  return \`
+                    <tr class="\${rowClass} new-row" data-url="\${data.url}" data-id="\${doc.id}">
+                      <td>\${index}</td>
+                      <td>\${data.country || 'N/A'}</td>
+                      <td>\${data.regionName || 'N/A'}</td>
+                      <td>\${data.city || 'N/A'}</td>
+                      <td>\${data.method || 'N/A'}</td>
+                      <td>\${data.url || 'N/A'}</td>
+                      <td>\${data.timestamp || 'N/A'}</td>
+                      <td>\${data.ip || 'N/A'}</td>
+                    </tr>
+                  \`;
+                } catch (err) {
+                  console.error('Error creating table row:', err);
+                  showError('Error creating table row');
+                  return '';
+                }
+              }
+
+              // Real-time listener with error handling
+              let rowCount = 0;
+              const unsubscribe = db.collection("requests")
+                .orderBy("timestamp", "asc")
+                .onSnapshot((snapshot) => {
+                  const tableBody = document.getElementById('logsTableBody');
+                  
+                  snapshot.docChanges().forEach((change) => {
+                    try {
+                      if (change.type === "added") {
+                        rowCount++;
+                        const newRow = createTableRow(change.doc, rowCount);
+                        tableBody.insertAdjacentHTML('afterbegin', newRow);
+                        
+                        setTimeout(() => {
+                          const row = document.querySelector(\`tr[data-id="\${change.doc.id}"]\`);
+                          if (row) row.classList.remove('new-row');
+                        }, 2000);
+                      } else if (change.type === "modified") {
+                        const row = document.querySelector(\`tr[data-id="\${change.doc.id}"]\`);
+                        if (row) {
+                          const index = row.querySelector('td').textContent;
+                          const updatedRow = createTableRow(change.doc, index);
+                          row.outerHTML = updatedRow;
+                        }
+                      } else if (change.type === "removed") {
+                        const row = document.querySelector(\`tr[data-id="\${change.doc.id}"]\`);
+                        if (row) row.remove();
+                      }
+                    } catch (err) {
+                      console.error('Error handling document change:', err);
+                      showError('Error updating table');
+                    }
+                  });
+                }, (error) => {
+                  console.error("Firestore listener error:", error);
+                  showError('Error connecting to database: ' + error.message);
+                });
+
+              // Clean up listener on page unload
+              window.addEventListener('unload', () => {
+                if (unsubscribe) unsubscribe();
+              });
+
+            } catch (err) {
+              console.error("Firebase initialization error:", err);
+              showError('Error initializing Firebase: ' + err.message);
             }
 
             function toggleFilter() {
@@ -302,12 +379,10 @@ app.get("/mine/list", async (req, res) => {
               const rows = document.querySelectorAll("tr[data-url='/mine/list']");
               
               if (toggleBtn.classList.contains("off")) {
-                // Show all rows
                 rows.forEach((row) => row.classList.remove("hidden-row"));
                 toggleBtn.classList.remove("off");
                 toggleBtn.textContent = "Hide '/mine/list' Entries";
               } else {
-                // Hide rows where the URL is "/mine/list"
                 rows.forEach((row) => row.classList.add("hidden-row"));
                 toggleBtn.classList.add("off");
                 toggleBtn.textContent = "Show All";
@@ -318,9 +393,14 @@ app.get("/mine/list", async (req, res) => {
       </html>
     `;
 
-    res.send(table);
+    res.send(initialHtml);
   } catch (err) {
-    res.status(500).json({ error: "Failed to retrieve logs.", err });
+    console.error("Server-side error:", err);
+    res.status(500).json({ 
+      error: "Failed to retrieve logs.", 
+      details: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 });
 
