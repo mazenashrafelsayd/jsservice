@@ -260,14 +260,14 @@ app.get("/mine/list", async (req, res) => {
                   <thead>
                     <tr>
                       <th>#</th>
+                      <th>Timestamp</th>
                       <th>Country</th>
                       <th>Region</th>
                       <th>City</th>
                       <th>Method</th>
-                      <th>Request URL</th>
-                      <th>Timestamp</th>
-                      <th>IP</th>
                       <th>Source</th>
+                      <th>IP</th>
+                      <th>Request URL</th>
                     </tr>
                   </thead>
                   <tbody id="logsTableBody">
@@ -311,14 +311,14 @@ app.get("/mine/list", async (req, res) => {
                   return \`
                     <tr class="\${rowClass} new-row" data-url="\${data.url}" data-id="\${doc.id}">
                       <td>\${index}</td>
+                      <td>\${data.timestamp || 'N/A'}</td>
                       <td>\${data.country || 'N/A'}</td>
                       <td>\${data.regionName || 'N/A'}</td>
                       <td>\${data.city || 'N/A'}</td>
                       <td>\${data.method || 'N/A'}</td>
-                      <td>\${data.url || 'N/A'}</td>
-                      <td>\${data.timestamp || 'N/A'}</td>
-                      <td>\${data.ip || 'N/A'}</td>
                       <td>\${data.source || 'N/A'}</td>
+                      <td>\${data.ip || 'N/A'}</td>
+                      <td>\${data.url || 'N/A'}</td>
                     </tr>
                   \`;
                 } catch (err) {
