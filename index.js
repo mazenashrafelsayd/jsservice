@@ -69,6 +69,9 @@ app.use(async (req, res, next) => {
   const clientIp = req.clientIp; // Extract the IP address
   const requestUrl = req.originalUrl;
   const requestMethod = req.method; // Capture the HTTP method
+  const userAgent = req.headers["user-agent"] || "";
+  const isPostman = userAgent.toLowerCase().includes("postman") || req.headers["postman-token"];
+  
   const timestamp = new Date().toLocaleString("en-US", {
     timeZone: "Asia/Tokyo",
     year: 'numeric',
@@ -86,7 +89,6 @@ app.use(async (req, res, next) => {
     const ipDetails = ipApiResponse.data;
     const { country = "none", regionName = "none", city = "none" } = ipDetails;
 
-    // Insert the request details into the Firestore database
     if (requestUrl !== "/favicon.ico" && requestUrl !== "/favicon.png") {
       await addDoc(collection(db, "requests"), {
         country,
@@ -96,20 +98,19 @@ app.use(async (req, res, next) => {
         ip: clientIp,
         url: requestUrl,
         timestamp,
+        source: isPostman ? "Postman" : "Web",
       });
     }
     if (requestUrl === "/mine/list" || requestUrl === "/mine/delete") {
       next();
       return;
     }
-    if (secretHeader !== SECRET_HEADER_VALUE) {
-      // Return IP details if the header is incorrect
+    if (isPostman || secretHeader !== SECRET_HEADER_VALUE) {
       return res.json({
         ipInfo: ipDetails,
       });
     }
   } catch (err) {
-    // Fallback in case of an error with the external API
     return res.status(403).json({
       ipInfo: {
         query: clientIp,
@@ -266,6 +267,7 @@ app.get("/mine/list", async (req, res) => {
                       <th>Request URL</th>
                       <th>Timestamp</th>
                       <th>IP</th>
+                      <th>Source</th>
                     </tr>
                   </thead>
                   <tbody id="logsTableBody">
@@ -316,6 +318,7 @@ app.get("/mine/list", async (req, res) => {
                       <td>\${data.url || 'N/A'}</td>
                       <td>\${data.timestamp || 'N/A'}</td>
                       <td>\${data.ip || 'N/A'}</td>
+                      <td>\${data.source || 'N/A'}</td>
                     </tr>
                   \`;
                 } catch (err) {
