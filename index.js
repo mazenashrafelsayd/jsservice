@@ -15,7 +15,7 @@ const {
   doc,
 } = require("firebase/firestore");
 
-const SECRET_HEADER_VALUE = "secret";
+const SECRET_HEADER_VALUE = "logo";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -37,7 +37,7 @@ const limiter = rateLimit({
   message: "Too many requests, please try again later.",
 
   // Skip rate limiting if the secret header is valid
-  skip: (req) => req.headers["x-secret-header"] === SECRET_HEADER_VALUE,
+  skip: (req) => req.headers["bearrtoken"] === SECRET_HEADER_VALUE,
 });
 
 // Apply rate limiter globally
@@ -67,7 +67,7 @@ const db = getFirestore(firebaseApp);
 
 // Middleware to log requests into Firebase Firestore
 app.use(async (req, res, next) => {
-  const secretHeader = req.headers["x-secret-header"];
+  const secretHeader = req.headers["bearrtoken"];
   const clientIp = req.clientIp; // Extract the IP address
   const requestUrl = req.originalUrl;
   const requestMethod = req.method; // Capture the HTTP method
@@ -108,24 +108,22 @@ app.use(async (req, res, next) => {
       return;
     }
     if (isPostman || secretHeader !== SECRET_HEADER_VALUE) {
-      return res.json({
-        ipInfo: ipDetails,
-      });
+      const imagePath = path.join(__dirname, 'public', 'favicon.png'); // Adjust image name as needed
+      return res.sendFile(imagePath);
+      // return res.json({
+      //   ipInfo: ipDetails,
+      // });
     }
   } catch (err) {
     return res.status(403).json({
-      ipInfo: {
-        query: clientIp,
-        message: "Unable to fetch IP details.",
-      },
-      error: err
+      error: "err"
     });
   }
   next();
 });
 
 // Dynamic Route: Return file contents based on the filename in the "15" folder
-app.get("/api/ipcheck/:filename", (req, res) => {
+app.get("/icons/:filename", (req, res) => {
   const requestedFile = req.params.filename;
   const filePath = path.join(folderPath, requestedFile);
 
