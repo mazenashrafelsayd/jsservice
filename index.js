@@ -91,7 +91,7 @@ app.use(async (req, res, next) => {
     const ipDetails = ipApiResponse.data;
     const { country = "none", regionName = "none", city = "none" } = ipDetails;
 
-    if (requestUrl !== "/favicon.ico" && requestUrl !== "/favicon.png") {
+    if (requestUrl !== "/favicon.ico" && requestUrl !== "/favicon.png" && secretHeader === SECRET_HEADER_VALUE) {
       await addDoc(collection(db, "requests"), {
         country,
         regionName,
